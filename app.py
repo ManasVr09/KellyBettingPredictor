@@ -29,6 +29,12 @@ st.set_page_config(
     layout="wide",
 )
 
+# Plotly's native template mutes chart text. Inherit the page foreground for
+# readable labels in either mode, including instant client-side theme changes.
+st.html("""<style>
+[data-testid="stPlotlyChart"] svg text { fill: currentColor !important; }
+</style>""")
+
 
 DEFAULT_INPUTS = {
     "initial_bankroll": 1_000.0,
@@ -75,9 +81,9 @@ def make_bankroll_figure(
     """Create a median bankroll chart with a 10th–90th percentile ribbon."""
 
     colors = {
-        "No Kelly": ("#94a3b8", "rgba(148, 163, 184, 0.12)"),
+        "No Kelly": ("#788697", "rgba(148, 163, 184, 0.12)"),
         "Half Kelly": ("#2f80ed", "rgba(47, 128, 237, 0.12)"),
-        "Full Kelly": ("#f2994a", "rgba(242, 153, 74, 0.12)"),
+        "Full Kelly": ("#CF711B", "rgba(242, 153, 74, 0.12)"),
     }
     x = np.arange(number_of_bets + 1)
     figure = go.Figure()
@@ -126,6 +132,10 @@ def make_bankroll_figure(
         annotation_position="top left",
     )
     figure.update_layout(
+        template="streamlit",
+        font={"size": 14},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         title="Bankroll over repeated bets",
         xaxis_title="Bet number",
         yaxis_title="Bankroll ($)",
@@ -135,6 +145,8 @@ def make_bankroll_figure(
         margin={"l": 10, "r": 10, "t": 55, "b": 10},
         legend={"orientation": "h", "y": 1.08, "x": 0},
     )
+    figure.update_xaxes(automargin=True, tickfont={"size": 14}, title_font={"size": 15}, showgrid=False, zeroline=False)
+    figure.update_yaxes(tickformat="$,.0f", automargin=True, tickfont={"size": 14}, title_font={"size": 15}, gridcolor="rgba(128,128,128,0.25)", zeroline=False)
     return figure
 
 
@@ -226,7 +238,7 @@ def implementation_signature() -> tuple:
 @st.cache_data(max_entries=8, show_spinner=False)
 def render_bankroll_chart(simulation_key: tuple, number_of_bets: int, initial_bankroll: float,
                           log_scale: bool, _results) -> None:
-    st.plotly_chart(make_bankroll_figure(_results, number_of_bets, initial_bankroll, log_scale))
+    st.plotly_chart(make_bankroll_figure(_results, number_of_bets, initial_bankroll, log_scale), theme="streamlit", width="stretch")
 
 
 @st.cache_data(max_entries=8, show_spinner=False)
