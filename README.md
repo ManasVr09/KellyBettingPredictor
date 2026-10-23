@@ -56,3 +56,7 @@ The simulation uses shared random outcomes for all three policies so the
 comparison isolates stake sizing. It is illustrative only and does not model
 changing odds, bookmaker margin, fees, taxes, betting limits, estimation error,
 or dependence between outcomes.
+
+## Performance
+
+See the [performance notes](PERFORMANCE.md) for caching and result-preservation checks.

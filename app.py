@@ -177,7 +177,7 @@ def build_probability_ladder(
     )
 
 
-@st.cache_data(show_spinner=False, max_entries=32)
+@st.cache_data(show_spinner=False, max_entries=8)
 def run_simulation(
     initial_bankroll: float,
     win_probability: float,
@@ -185,6 +185,7 @@ def run_simulation(
     number_of_bets: int,
     simulations: int,
     seed: int,
+    implementation_key: tuple = (),
 ):
     """Cache simulation output while the user explores the controls."""
 
@@ -196,6 +197,29 @@ def run_simulation(
         simulations=simulations,
         seed=seed,
     )
+
+
+def implementation_signature() -> tuple:
+    return tuple((path.name, path.stat().st_mtime_ns, path.stat().st_size)
+                 for path in (ROOT / "app.py", ROOT / "simulator.py"))
+
+
+@st.cache_data(max_entries=8, show_spinner=False)
+def render_bankroll_chart(simulation_key: tuple, number_of_bets: int, initial_bankroll: float,
+                          log_scale: bool, _results) -> None:
+    st.plotly_chart(make_bankroll_figure(_results, number_of_bets, initial_bankroll, log_scale))
+
+
+@st.cache_data(max_entries=8, show_spinner=False)
+def render_summary(simulation_key: tuple, initial_bankroll: float, _results) -> None:
+    st.subheader("Strategy comparison")
+    st.dataframe(build_summary_table(_results, initial_bankroll), hide_index=True)
+
+
+@st.cache_data(max_entries=16, show_spinner=False)
+def render_probability_ladder(implementation_key: tuple, decimal_odds: float, initial_bankroll: float, win_probability: float) -> None:
+    st.subheader("Probability ladder at these odds")
+    st.dataframe(build_probability_ladder(decimal_odds, initial_bankroll, win_probability), hide_index=True)
 
 
 st.session_state.setdefault("simulation_inputs", DEFAULT_INPUTS.copy())
@@ -312,28 +336,22 @@ metric_2.metric("Break-even probability", f"{break_even:.1%}")
 metric_3.metric("Expected value per $1", f"{expected_value:+.3f}")
 metric_4.metric("Full Kelly stake", money(initial_bankroll * full_kelly))
 
-results = run_simulation(
-    initial_bankroll,
-    win_probability,
-    decimal_odds,
-    number_of_bets,
-    simulations,
-    seed,
-)
-
-st.plotly_chart(
-    make_bankroll_figure(results, number_of_bets, initial_bankroll, log_scale)
-)
+code_signature = implementation_signature()
+arguments = (initial_bankroll, win_probability, decimal_odds, number_of_bets, simulations, seed)
+simulation_key = (*arguments, code_signature)
+if st.session_state.get("report_key") != simulation_key:
+    st.session_state["simulation_results"] = run_simulation(*arguments, implementation_key=code_signature)
+    st.session_state["report_key"] = simulation_key
+results = st.session_state["simulation_results"]
+render_bankroll_chart(simulation_key, number_of_bets, initial_bankroll, log_scale, results)
 st.caption(
     "Lines show median bankroll. Shaded bands show the 10th–90th percentile across trials; "
     "all strategies see the same outcomes."
 )
 
-st.subheader("Strategy comparison")
-st.dataframe(build_summary_table(results, initial_bankroll), hide_index=True)
+render_summary(simulation_key, initial_bankroll, results)
 
-st.subheader("Probability ladder at these odds")
-st.dataframe(build_probability_ladder(decimal_odds, initial_bankroll, win_probability), hide_index=True)
+render_probability_ladder(code_signature, decimal_odds, initial_bankroll, win_probability)
 
 st.subheader("The sizing rule")
 st.latex(r"f^* = \frac{bp-q}{b}, \qquad b = O-1, \qquad q=1-p")
@@ -343,14 +361,16 @@ st.markdown(
     "your estimate does not clear the break-even probability."
 )
 
-with st.expander("Assumptions and caveats"):
-    st.markdown(
-        """
-        - Every wager is independent and has the same modeled win probability.
-        - Decimal odds stay constant across the simulation; the model does not include changing lines.
-        - The break-even probability is `1 / decimal odds`. Sportsbook margin, fees, taxes, limits, and slippage are not modeled separately.
-        - The probability estimate is treated as known. In real betting, estimation error is often the biggest risk.
-        - Kelly maximizes long-run growth of log wealth; it does not maximize the chance of being ahead after a short run.
-        """
-    )
+details = st.expander("Assumptions and caveats", on_change="rerun", key="simulation_assumptions")
+if details.open:
+    with details:
+        st.markdown(
+            """
+            - Every wager is independent and has the same modeled win probability.
+            - Decimal odds stay constant across the simulation; the model does not include changing lines.
+            - The break-even probability is `1 / decimal odds`. Sportsbook margin, fees, taxes, limits, and slippage are not modeled separately.
+            - The probability estimate is treated as known. In real betting, estimation error is often the biggest risk.
+            - Kelly maximizes long-run growth of log wealth; it does not maximize the chance of being ahead after a short run.
+            """
+        )
 st.warning("Illustrative simulation only — never risk money you cannot afford to lose.")
