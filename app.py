@@ -41,6 +41,25 @@ DEFAULT_INPUTS = {
 }
 
 
+def readable_table(frame, *, hide_index=True):
+    columns = {
+        name: st.column_config.Column(str(name), width="large" if name in
+            ("Strategy", "strategy", "path", "model", "retrieved_at_utc") else "medium")
+        for name in frame.columns
+    }
+    st.dataframe(frame, hide_index=hide_index, width="stretch", row_height=44, column_config=columns)
+
+
+def result_card(label, value, *, text=False, help=None, width=250):
+    """Wrap full labels and text outcomes; reserve large metric type for short numbers."""
+    with st.container(border=True, width=width):
+        st.markdown(label, help=help)
+        if text or len(str(value)) > 8:
+            st.subheader(str(value), anchor=False)
+        else:
+            st.metric(label, value, label_visibility="collapsed")
+
+
 def money(value: float) -> str:
     """Format a bankroll value compactly for tables and metrics."""
 
@@ -213,13 +232,13 @@ def render_bankroll_chart(simulation_key: tuple, number_of_bets: int, initial_ba
 @st.cache_data(max_entries=8, show_spinner=False)
 def render_summary(simulation_key: tuple, initial_bankroll: float, _results) -> None:
     st.subheader("Strategy comparison")
-    st.dataframe(build_summary_table(_results, initial_bankroll), hide_index=True)
+    readable_table(build_summary_table(_results, initial_bankroll), hide_index=True)
 
 
 @st.cache_data(max_entries=16, show_spinner=False)
 def render_probability_ladder(implementation_key: tuple, decimal_odds: float, initial_bankroll: float, win_probability: float) -> None:
     st.subheader("Probability ladder at these odds")
-    st.dataframe(build_probability_ladder(decimal_odds, initial_bankroll, win_probability), hide_index=True)
+    readable_table(build_probability_ladder(decimal_odds, initial_bankroll, win_probability), hide_index=True)
 
 
 st.session_state.setdefault("simulation_inputs", DEFAULT_INPUTS.copy())
@@ -330,11 +349,11 @@ else:
         "a negative-expected-value wager into a profitable one."
     )
 
-metric_1, metric_2, metric_3, metric_4 = st.columns(4)
-metric_1.metric("Your win probability", f"{win_probability:.1%}")
-metric_2.metric("Break-even probability", f"{break_even:.1%}")
-metric_3.metric("Expected value per $1", f"{expected_value:+.3f}")
-metric_4.metric("Full Kelly stake", money(initial_bankroll * full_kelly))
+with st.container(horizontal=True):
+    result_card("Your win probability", f"{win_probability:.1%}")
+    result_card("Break-even probability", f"{break_even:.1%}")
+    result_card("Expected value per $1", f"{expected_value:+.3f}")
+    result_card("Full Kelly stake", money(initial_bankroll * full_kelly))
 
 code_signature = implementation_signature()
 arguments = (initial_bankroll, win_probability, decimal_odds, number_of_bets, simulations, seed)
